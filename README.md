@@ -135,6 +135,30 @@ Official Schwab API specs are included in `docs/openapi/` for reference:
 - `trader-api.json` — Accounts, Orders, Transactions, User Preferences
 - `market-data-api.json` — Quotes, Option Chains, Price History, Movers, Market Hours, Instruments
 
+## MCP Client Configuration
+
+Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.json` or Claude Code `settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "schwab": {
+      "command": "/full/path/to/uv",
+      "args": [
+        "--directory",
+        "/path/to/schwab-mcp",
+        "run",
+        "schwab-mcp",
+        "server",
+        "--json"
+      ]
+    }
+  }
+}
+```
+
+> **Important**: Use the full absolute path to `uv` (e.g., `~/.local/bin/uv` or the output of `which uv`). A bare `"uv"` may not resolve in the MCP client's environment.
+
 ## Development
 
 ```bash

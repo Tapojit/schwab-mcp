@@ -1,140 +1,163 @@
-# Schwab Model Context Protocol Server
+# Schwab MCP Server (Read-Only)
 
-The **Schwab Model Context Protocol (MCP) Server** connects your Schwab account to LLM-based applications (like Claude Desktop or other MCP clients), allowing them to retrieve market data, check account status, and (optionally) place orders under your supervision.
+A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) server that connects your Schwab brokerage account to LLM-based applications (Claude Desktop, Claude Code, or other MCP clients) for portfolio monitoring and market data retrieval.
+
+> **This fork has been stripped of all trading, options placement, and order management capabilities.** It is designed exclusively as a portfolio data source — no orders can be placed, modified, or cancelled through this server.
 
 ## Features
 
-*   **Market Data**: Real-time quotes, price history, option chains, and market movers.
-*   **Account Management**: View balances, positions, and transactions.
-*   **Trading**: comprehensive support for equities and options, including complex strategies (OCO, Bracket).
-*   **Safety First**: Critical actions (like trading) are gated behind a **Discord approval workflow** by default.
-*   **LLM Integration**: Designed specifically for Agentic AI workflows.
+- **Market Data**: Real-time quotes, price history (multiple timeframes), market hours, movers, and instrument search.
+- **Account Info**: Balances, positions, transactions, and order history (read-only).
+- **Technical Analysis**: Optional indicators (SMA, EMA, RSI, MACD, Bollinger Bands, VWAP, ATR, ADX, and more) powered by pandas-ta.
+- **LLM Integration**: Built for agentic AI workflows via the MCP protocol.
 
 ## Quick Start
 
 ### Prerequisites
 
-*   Python 3.10 or higher
-*   [uv](https://github.com/astral-sh/uv) (recommended) or `pip`
-*   A Schwab Developer App Key and Secret (from the [Schwab Developer Portal](https://developer.schwab.com/))
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) (recommended) or `pip`
+- Schwab Developer App Key and Secret ([Schwab Developer Portal](https://developer.schwab.com/))
 
 ### Installation
 
-For most users, installing via `uv tool` or `pip` is easiest:
-
 ```bash
-# Using uv (recommended for isolation)
-uv tool install git+https://github.com/jkoelker/schwab-mcp.git
+# Using uv (recommended)
+uv tool install git+https://github.com/Tapojit/schwab-mcp.git
 
 # Using pip
-pip install git+https://github.com/jkoelker/schwab-mcp.git
+pip install git+https://github.com/Tapojit/schwab-mcp.git
+```
+
+### Save Credentials
+
+```bash
+schwab-mcp save-credentials
+# Prompts for Client ID and Client Secret, saves to local config
+```
+
+Or set environment variables:
+```bash
+export SCHWAB_CLIENT_ID=YOUR_KEY
+export SCHWAB_CLIENT_SECRET=YOUR_SECRET
 ```
 
 ### Authentication
 
-Before running the server, you must authenticate with Schwab to generate a token file.
+Generate a token file by logging in to Schwab:
 
 ```bash
-# If installed via uv tool
-schwab-mcp auth --client-id YOUR_KEY --client-secret YOUR_SECRET --callback-url https://127.0.0.1:8182
-
-# If running from source
-uv run schwab-mcp auth --client-id YOUR_KEY --client-secret YOUR_SECRET --callback-url https://127.0.0.1:8182
+schwab-mcp auth
 ```
 
-This will open a browser window for you to log in to Schwab. Once complete, a token will be saved to `~/.local/share/schwab-mcp/token.yaml`.
+This opens a browser for Schwab OAuth. The token is saved to `~/.local/share/schwab-mcp/token.yaml`.
 
 ### Running the Server
 
-Start the MCP server to expose the tools to your MCP client.
-
 ```bash
-# Basic Read-Only Mode (Safest)
-schwab-mcp server --client-id YOUR_KEY --client-secret YOUR_SECRET
-
-# With Trading Enabled (Requires Discord Approval)
-schwab-mcp server \
-  --client-id YOUR_KEY \
-  --client-secret YOUR_SECRET \
-  --discord-token BOT_TOKEN \
-  --discord-channel-id CHANNEL_ID \
-  --discord-approver YOUR_USER_ID
+schwab-mcp server
 ```
-
-> **Note**: For trading capabilities, you must set up a Discord bot for approvals. See [Discord Setup Guide](docs/discord-setup.md).
 
 ## Configuration
 
-You can configure the server using CLI flags or Environment Variables.
-
 | Flag | Env Variable | Description |
 |------|--------------|-------------|
-| `--client-id` | `SCHWAB_CLIENT_ID` | **Required**. Schwab App Key. |
-| `--client-secret` | `SCHWAB_CLIENT_SECRET` | **Required**. Schwab App Secret. |
-| `--callback-url` | `SCHWAB_CALLBACK_URL` | Redirect URL (default: `https://127.0.0.1:8182`). |
-| `--token-path` | N/A | Path to save/load token (default: `~/.local/share/...`). |
-| `--jesus-take-the-wheel`| N/A | **DANGER**. Bypasses Discord approval for trades. |
-| `--no-technical-tools` | N/A | Disables technical analysis tools (SMA, RSI, etc.). |
-| `--json` | N/A | Returns raw JSON instead of formatted text (useful for some agents). |
+| `--client-id` | `SCHWAB_CLIENT_ID` | Schwab App Key |
+| `--client-secret` | `SCHWAB_CLIENT_SECRET` | Schwab App Secret |
+| `--callback-url` | `SCHWAB_CALLBACK_URL` | Redirect URL (default: `https://127.0.0.1:8182`) |
+| `--token-path` | — | Path to token file (default: `~/.local/share/schwab-mcp/token.yaml`) |
+| `--no-technical-tools` | — | Disable technical analysis tools |
+| `--json` | — | Return raw JSON instead of Toon-encoded strings |
 
-### Container Usage
+## Available Tools (35 total)
 
-A Docker/Podman image is available at `ghcr.io/jkoelker/schwab-mcp`.
-
-```bash
-podman run --rm -it \
-  --env SCHWAB_CLIENT_ID=... \
-  --env SCHWAB_CLIENT_SECRET=... \
-  -v ~/.local/share/schwab-mcp:/schwab-mcp \
-  ghcr.io/jkoelker/schwab-mcp:latest server --token-path /schwab-mcp/token.yaml
-```
-
-## Available Tools
-
-The server provides a rich set of tools for LLMs.
-
-### 📊 Market Data
+### Utilities (4)
 | Tool | Description |
 |------|-------------|
-| `get_quotes` | Real-time quotes for symbols. |
-| `get_market_hours` | Market open/close times. |
-| `get_movers` | Top gainers/losers for an index. |
-| `get_option_chain` | Standard option chain data. |
-| `get_price_history_*` | Historical candles (minute, day, week). |
+| `get_datetime` | Current datetime in Eastern Time |
+| `get_market_hours` | Market open/close times for a given date |
+| `get_movers` | Top 10 movers for an index (DJI, SPX, NASDAQ, etc.) |
+| `get_instruments` | Search instruments by symbol or description |
 
-### 💼 Account Info
+### Account Info (6)
 | Tool | Description |
 |------|-------------|
-| `get_accounts` | List linked accounts. |
-| `get_account_positions` | Detailed positions and balances. |
-| `get_transactions` | History of trades and transfers. |
-| `get_orders` | Status of open and filled orders. |
+| `get_account_numbers` | Account ID to hash mapping |
+| `get_accounts` | Balances for all linked accounts |
+| `get_accounts_with_positions` | Balances + positions for all accounts |
+| `get_account` | Balance for a specific account |
+| `get_account_with_positions` | Balance + positions for a specific account |
+| `get_user_preferences` | User display/notification preferences |
 
-### 💸 Trading (Requires Approval)
+### Market Data (9)
 | Tool | Description |
 |------|-------------|
-| `place_equity_order` | Buy/Sell stocks and ETFs. |
-| `place_option_order` | Buy/Sell option contracts. |
-| `place_bracket_order` | Entry + Take Profit + Stop Loss. |
-| `cancel_order` | Cancel an open order. |
+| `get_quotes` | Real-time quotes for symbols |
+| `get_advanced_price_history` | Price history with custom period/frequency |
+| `get_price_history_every_minute` | 1-minute OHLCV candles |
+| `get_price_history_every_five_minutes` | 5-minute OHLCV candles |
+| `get_price_history_every_ten_minutes` | 10-minute OHLCV candles |
+| `get_price_history_every_fifteen_minutes` | 15-minute OHLCV candles |
+| `get_price_history_every_thirty_minutes` | 30-minute OHLCV candles |
+| `get_price_history_every_day` | Daily OHLCV candles |
+| `get_price_history_every_week` | Weekly OHLCV candles |
 
-*(See full tool list in `src/schwab_mcp/tools/`)*
+### Orders & Transactions (4, read-only)
+| Tool | Description |
+|------|-------------|
+| `get_order` | Details for a specific order |
+| `get_orders` | Order history with status/date filters |
+| `get_transactions` | Transaction history (trades, dividends, etc.) |
+| `get_transaction` | Details for a specific transaction |
+
+### Technical Analysis (12, optional)
+| Tool | Description |
+|------|-------------|
+| `sma` | Simple Moving Average |
+| `ema` | Exponential Moving Average |
+| `rsi` | Relative Strength Index |
+| `stoch` | Stochastic Oscillator (%K, %D) |
+| `macd` | Moving Average Convergence Divergence |
+| `atr` | Average True Range |
+| `adx` | Average Directional Index |
+| `vwap` | Volume Weighted Average Price |
+| `pivot_points` | Pivot point support/resistance levels |
+| `bollinger_bands` | Bollinger Bands |
+| `historical_volatility` | Historical volatility statistics |
+| `expected_move` | Option-priced expected move (±1 SD) |
+
+> Technical analysis tools require `pandas` and `pandas-ta-classic`. Install with: `uv sync --group ta`
+
+## OpenAPI Specifications
+
+Official Schwab API specs are included in `docs/openapi/` for reference:
+
+- `trader-api.json` — Accounts, Orders, Transactions, User Preferences
+- `market-data-api.json` — Quotes, Option Chains, Price History, Movers, Market Hours, Instruments
 
 ## Development
 
-To contribute to this project:
-
 ```bash
-# Clone and install dependencies
-git clone https://github.com/jkoelker/schwab-mcp.git
+git clone https://github.com/Tapojit/schwab-mcp.git
 cd schwab-mcp
-uv sync
+uv sync --group dev --group ta
 
 # Run tests
 uv run pytest
 
-# Format and Lint
+# Lint and format
 uv run ruff format . && uv run ruff check .
+
+# Type check
+uv run pyright
+```
+
+### MCP Inspector
+
+A dev server is included for testing with the MCP Inspector:
+
+```bash
+uv run mcp dev dev_server.py:mcp -e .
 ```
 
 ## License

@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 
 
-
 class TestFakeCallFactory:
     """Tests for fake_call_factory fixture."""
 

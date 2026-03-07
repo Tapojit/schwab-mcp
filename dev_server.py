@@ -50,5 +50,14 @@ _server = SchwabMCPServer(
     use_json=True,
 )
 
-# Module-level FastMCP instance for `mcp dev` to discover
-mcp = _server._server
+# Module-level FastMCP instance for `mcp dev` to discover.
+# Access the internal `_server` attribute defensively so that if the
+# implementation of `SchwabMCPServer` changes, we fail fast with a clear
+# error instead of silently breaking.
+mcp = getattr(_server, "_server", None)
+if mcp is None:
+    raise RuntimeError(
+        "SchwabMCPServer no longer exposes a '_server' attribute. "
+        "Add a public property or method to access the underlying FastMCP "
+        "instance, and update dev_server.py to use it."
+    )

@@ -133,7 +133,7 @@ async def get_movers(
 - Let unexpected exceptions propagate (don't catch-all)
 
 ```python
-if order_type not in _VALID_STATUSES:
+if status not in _VALID_STATUSES:
     raise ValueError(
         f"Invalid status: {status}. Must be one of: WORKING, FILLED, CANCELED, ..."
     )

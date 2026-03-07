@@ -5,35 +5,43 @@
 ```
 src/schwab_mcp/
   __init__.py         # Entry point proxy
-  cli.py              # Click CLI commands (auth, server)
+  cli.py              # Click CLI commands (auth, server, save-credentials)
   server.py           # SchwabMCPServer class, FastMCP integration
   context.py          # SchwabContext, SchwabServerContext dataclasses
   auth.py             # OAuth browser flow helpers
-  tokens.py           # Token load/save, validation
-  approvals/          # Discord approval workflow
-  tools/              # MCP tool implementations
+  tokens.py           # Token load/save, validation, credentials management
+  resources.py        # MCP resource definitions
+  tools/              # MCP tool implementations (all read-only)
     __init__.py       # register_tools() aggregator
-    _registration.py  # register_tool(), approval wrapping
+    _registration.py  # register_tool() with readOnlyHint=True
     _protocols.py     # Protocol classes for typed client facades
     utils.py          # call() helper, SchwabAPIError, JSONType
-    tools.py          # get_datetime, get_market_hours, get_movers
+    tools.py          # get_datetime, get_market_hours, get_movers, get_instruments
     account.py        # Account and preferences tools
-    history.py        # Price history tools
-    options.py        # Option chain tools
-    orders.py         # Order placement and management
-    order_helpers.py  # Order builder factories
+    history.py        # Price history tools (multiple timeframes)
+    orders.py         # Order viewing (get_order, get_orders only)
     quotes.py         # Quote retrieval tools
     transactions.py   # Transaction history tools
-    technical/        # Optional pandas-ta indicators (sma, rsi, etc.)
+    technical/        # Optional pandas-ta indicators (sma, rsi, macd, etc.)
 tests/
+  conftest.py         # make_ctx(), run(), shared fixtures
   test_*.py           # Mirror source structure
+docs/
+  openapi/            # Schwab API OpenAPI 3.x specifications
+dev_server.py         # MCP Inspector entry point
 ```
+
+## Important: Read-Only Server
+
+This is a **read-only** fork. All trading, order placement, order cancellation,
+options tools, approval workflows, and Discord integration have been removed.
+Every registered tool has `readOnlyHint=True`. Do not add write operations.
 
 ## Build, Test, and Development Commands
 
 ```bash
 # Install dependencies
-uv sync
+uv sync --group dev --group ta
 
 # Run the CLI
 uv run schwab-mcp --help
@@ -59,13 +67,16 @@ uv run pytest tests/test_tools.py
 uv run pytest tests/test_tools.py::test_get_datetime_returns_eastern_time
 
 # Run tests matching a pattern
-uv run pytest -k "get_option"
+uv run pytest -k "get_order"
 
 # Run with verbose output
 uv run pytest -v tests/test_orders.py
 
 # Combined check before commit
 uv run ruff format . && uv run ruff check . && uv run pyright && uv run pytest
+
+# MCP Inspector (dev server)
+uv run mcp dev dev_server.py:mcp -e .
 ```
 
 ## Code Style & Formatting
@@ -113,20 +124,18 @@ async def get_movers(
 - Classes: `CamelCase` (e.g., `SchwabContext`, `SchwabMCPServer`)
 - Functions/methods: `snake_case`
 - Constants: `UPPER_SNAKE_CASE`
-- Private helpers: prefix with `_` (e.g., `_build_equity_order_spec`)
-- Tool functions: match Schwab API naming (e.g., `get_market_hours`, `place_equity_order`)
+- Private helpers: prefix with `_` (e.g., `_resolve_context_parameters`)
+- Tool functions: match Schwab API naming (e.g., `get_market_hours`, `get_quotes`)
 
 ### Error Handling
 - Use `SchwabAPIError` for API failures (defined in `tools/utils.py`)
 - Raise `ValueError` for invalid parameters
-- Raise `PermissionError` for denied approvals
-- Raise `TimeoutError` for expired approvals
 - Let unexpected exceptions propagate (don't catch-all)
 
 ```python
-if order_type not in _EQUITY_ORDER_TYPES:
+if order_type not in _VALID_STATUSES:
     raise ValueError(
-        f"Invalid order_type: {order_type}. Must be one of: MARKET, LIMIT, STOP, STOP_LIMIT"
+        f"Invalid status: {status}. Must be one of: WORKING, FILLED, CANCELED, ..."
     )
 ```
 
@@ -144,14 +153,9 @@ if order_type not in _EQUITY_ORDER_TYPES:
 
 ### Test Fixtures Pattern
 ```python
-class DummyApprovalManager(ApprovalManager):
-    async def require(self, request: ApprovalRequest) -> ApprovalDecision:
-        return ApprovalDecision.APPROVED
-
 def make_ctx(client: Any) -> SchwabContext:
     lifespan_context = SchwabServerContext(
         client=cast(AsyncClient, client),
-        approval_manager=DummyApprovalManager(),
     )
     request_context = SimpleNamespace(lifespan_context=lifespan_context)
     return SchwabContext.model_construct(
@@ -190,10 +194,9 @@ def test_get_market_hours_handles_string_inputs(monkeypatch):
 
 ## Security & Configuration
 
-- Store credentials via environment variables or `.env` files
-- Required: `SCHWAB_CLIENT_ID`, `SCHWAB_CLIENT_SECRET`, `SCHWAB_CALLBACK_URL`
+- Store credentials via environment variables or `schwab-mcp save-credentials`
+- Required: `SCHWAB_CLIENT_ID`, `SCHWAB_CLIENT_SECRET`
 - Never commit tokens from `~/.local/share/schwab-mcp/`
-- Changes enabling `--jesus-take-the-wheel` require documented safeguards
 
 ## Commit Message Format
 
@@ -203,7 +206,7 @@ Follow Linux kernel style with conventional commits:
 - Imperative mood: "Add feature" not "Added feature"
 - Format: `type(scope): description`
 - Types: `fix`, `feat`, `chore`, `refactor`, `test`, `perf`, `docs`
-- Scopes: `tools`, `cli`, `server`, `auth`, `approvals`, `deps`
+- Scopes: `tools`, `cli`, `server`, `auth`, `deps`
 - No period at end
 
 ### Body (wrap at 72 chars)
@@ -213,24 +216,22 @@ Follow Linux kernel style with conventional commits:
 
 ### Examples
 ```
-feat(tools): add trailing stop order support
+feat(tools): add advanced price history timeframe
 
-Order placement previously only supported market, limit, stop, and
-stop-limit orders. Users frequently need trailing stops for automated
-risk management.
+Price history tools previously only supported daily and weekly candles.
+Users need finer-grained data for intraday analysis.
 
-Add place_equity_trailing_stop_order() and supporting builder functions.
-Include tests for VALUE and PERCENT trail types.
+Add get_price_history_every_minute through every_thirty_minutes tools.
 
-Closes #23
+Closes #42
 ```
 
 ```
-fix(options): default date window to 60 days
+fix(tools): default date window to 60 days for orders
 
-Option chain requests without date parameters returned all expirations,
-causing oversized responses that exceeded context limits.
+Order queries without date parameters returned all history, causing
+oversized responses that exceeded context limits.
 
-Default from_date to today and to_date to today + 60 days when both
-are omitted. This matches typical option trading horizons.
+Default from_date to today - 60 days and to_date to today when both
+are omitted.
 ```

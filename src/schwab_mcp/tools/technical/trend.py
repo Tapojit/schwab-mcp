@@ -136,10 +136,8 @@ async def adx(
 def register(
     server: FastMCP,
     *,
-    allow_write: bool,
     result_transform: Callable[[Any], Any] | None = None,
 ) -> None:
-    _ = allow_write
     register_tool(server, macd, result_transform=result_transform)
     register_tool(server, atr, result_transform=result_transform)
     register_tool(server, adx, result_transform=result_transform)

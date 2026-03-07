@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
-from typing import Any, AsyncContextManager, Callable, Optional
+from typing import Any, AsyncContextManager, Optional
 
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
@@ -13,7 +13,6 @@ from schwab.client import AsyncClient
 from schwab_mcp.tools import register_tools
 from schwab_mcp.resources import register_resources
 from schwab_mcp.context import SchwabServerContext
-from schwab_mcp.approvals import ApprovalManager
 
 
 logger = logging.getLogger(__name__)
@@ -21,21 +20,15 @@ logger = logging.getLogger(__name__)
 
 def _client_lifespan(
     client: AsyncClient,
-    approval_manager: ApprovalManager,
 ) -> Callable[[FastMCP], AsyncContextManager[SchwabServerContext]]:
     """Create a FastMCP lifespan context that exposes the Schwab async client."""
 
     @asynccontextmanager
     async def lifespan(_: FastMCP) -> AsyncGenerator[SchwabServerContext, None]:
-        await approval_manager.start()
-        context = SchwabServerContext(client=client, approval_manager=approval_manager)
+        context = SchwabServerContext(client=client)
         try:
             yield context
         finally:
-            try:
-                await approval_manager.stop()
-            except Exception:
-                logger.exception("Failed to shut down approval manager cleanly.")
             try:
                 await client.close_async_session()
             except Exception:
@@ -47,15 +40,13 @@ def _client_lifespan(
 
 
 class SchwabMCPServer:
-    """Schwab Model Context Protocol server backed by FastMCP."""
+    """Schwab Model Context Protocol server backed by FastMCP (read-only)."""
 
     def __init__(
         self,
         name: str,
         client: AsyncClient,
-        approval_manager: ApprovalManager,
         *,
-        allow_write: bool,
         enable_technical_tools: bool = True,
         use_json: bool = False,
     ) -> None:
@@ -78,12 +69,10 @@ class SchwabMCPServer:
 
         self._server = FastMCP(
             name=name,
-            lifespan=_client_lifespan(client, approval_manager),
+            lifespan=_client_lifespan(client),
         )
         register_tools(
             self._server,
-            client,
-            allow_write=allow_write,
             enable_technical=enable_technical_tools,
             result_transform=result_transform,
         )

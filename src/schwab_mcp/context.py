@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING, Any, cast
 from schwab.client import AsyncClient
 from mcp.server.fastmcp import Context as MCPContext
 
-from schwab_mcp.approvals import ApprovalManager
-
 if TYPE_CHECKING:
     from schwab_mcp.tools._protocols import (
         AccountClient,
@@ -29,7 +27,6 @@ class SchwabServerContext:
     """Typed application context shared via FastMCP lifespan."""
 
     client: AsyncClient
-    approval_manager: ApprovalManager
     tools: ToolsClient = field(init=False)
     accounts: AccountClient = field(init=False)
     price_history: PriceHistoryClient = field(init=False)
@@ -61,10 +58,6 @@ class SchwabContext(MCPContext[Any, SchwabServerContext, Any]):
     @property
     def client(self) -> AsyncClient:
         return self.schwab.client
-
-    @property
-    def approvals(self) -> ApprovalManager:
-        return self.schwab.approval_manager
 
     @property
     def tools(self) -> ToolsClient:

@@ -140,7 +140,6 @@ class TestServerCredentialsFile:
                 "server",
                 "--token-path",
                 str(tmp_path / "token.yaml"),
-                "--jesus-take-the-wheel",
             ],
             catch_exceptions=False,
         )
@@ -172,7 +171,6 @@ class TestServerCredentialsFile:
                 "cli-id",
                 "--client-secret",
                 "cli-secret",
-                "--jesus-take-the-wheel",
             ],
             catch_exceptions=False,
         )

@@ -168,10 +168,8 @@ async def bollinger_bands(
 def register(
     server: FastMCP,
     *,
-    allow_write: bool,
     result_transform: Callable[[Any], Any] | None = None,
 ) -> None:
-    _ = allow_write
     register_tool(server, vwap, result_transform=result_transform)
     register_tool(server, pivot_points, result_transform=result_transform)
     register_tool(server, bollinger_bands, result_transform=result_transform)

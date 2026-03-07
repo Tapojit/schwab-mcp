@@ -21,12 +21,9 @@ pandas_ta = cast(Any, _pandas_ta)
 def register(
     server: "FastMCP",
     *,
-    allow_write: bool,
     result_transform: Callable[[Any], Any] | None = None,
 ) -> None:
     """Register optional technical analysis tools if dependencies are available."""
-    _ = allow_write
-
     if _pandas_ta is None:
         logger.debug(
             "Skipping technical analysis tools because pandas_ta_classic is not installed."
@@ -41,7 +38,6 @@ def register(
             )
         register_fn(
             server,
-            allow_write=allow_write,
             result_transform=result_transform,
         )
 

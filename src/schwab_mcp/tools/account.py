@@ -86,9 +86,7 @@ _READ_ONLY_TOOLS = (
 def register(
     server: FastMCP,
     *,
-    allow_write: bool,
     result_transform: Callable[[Any], Any] | None = None,
 ) -> None:
-    _ = allow_write
     for func in _READ_ONLY_TOOLS:
         register_tool(server, func, result_transform=result_transform)

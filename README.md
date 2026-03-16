@@ -18,7 +18,17 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 ### Prerequisites
 
 - [Bun](https://bun.sh/) v1.0+ (runtime, bundler, and test runner)
-- Schwab Developer App Key and Secret ([Schwab Developer Portal](https://developer.schwab.com/))
+- A Schwab brokerage account
+- A Schwab Developer App Key (client ID) and Secret (client secret)
+
+#### Obtaining Schwab API Credentials
+
+1. Go to the [Schwab Developer Portal](https://developer.schwab.com/) and sign in (or create an account).
+2. Navigate to **Dashboard** → **Apps** → **Create App**.
+3. Fill in the app details. Set the **callback URL** to `https://127.0.0.1:8182` (the default used by this server).
+4. Once approved, your app page will display the **App Key** (this is your client ID) and **Secret** (this is your client secret).
+
+> **Note**: Schwab may take 1–2 business days to approve new apps. The callback URL you register must match the `--callback-url` flag (default: `https://127.0.0.1:8182`).
 
 ### Installation
 
@@ -51,29 +61,44 @@ bun build src/index.ts --compile --outfile schwab-mcp
 
 ### Save Credentials
 
+Store your App Key and Secret locally so you don't need to pass them every time:
+
 ```bash
-schwab-mcp save-credentials --client-id YOUR_KEY --client-secret YOUR_SECRET
+schwab-mcp save-credentials --client-id YOUR_APP_KEY --client-secret YOUR_APP_SECRET
 ```
 
 Or set environment variables:
 ```bash
-export SCHWAB_CLIENT_ID=YOUR_KEY
-export SCHWAB_CLIENT_SECRET=YOUR_SECRET
+export SCHWAB_CLIENT_ID=YOUR_APP_KEY
+export SCHWAB_CLIENT_SECRET=YOUR_APP_SECRET
 ```
 
 ### Authentication
 
-Generate a token file by logging in to Schwab:
+Generate an OAuth token by logging in to Schwab:
 
 ```bash
 schwab-mcp auth
 ```
 
-This opens a browser for Schwab OAuth. A local HTTPS callback server captures the authorization code. The token is saved to:
-- **macOS**: `~/Library/Application Support/schwab-mcp/token.json`
-- **Linux**: `~/.local/share/schwab-mcp/token.json`
+This opens a browser for Schwab OAuth. A local HTTPS callback server captures the authorization code and exchanges it for access and refresh tokens.
 
 > **Note**: Your browser will warn about an invalid certificate — this is expected. The callback server uses a self-signed TLS certificate for localhost.
+
+### File Storage Paths
+
+All files are stored in a platform-specific data directory with restricted permissions (`0o600` for files, `0o700` for directories):
+
+| File | macOS | Linux |
+|------|-------|-------|
+| OAuth token | `~/Library/Application Support/schwab-mcp/token.json` | `~/.local/share/schwab-mcp/token.json` |
+| Credentials | `~/Library/Application Support/schwab-mcp/credentials.json` | `~/.local/share/schwab-mcp/credentials.json` |
+
+On Linux, the `XDG_DATA_HOME` environment variable is respected if set. On Windows, files are stored under `%APPDATA%\schwab-mcp\`.
+
+You can override the token path with `--token-path <path>`.
+
+> **Token expiry**: OAuth tokens are valid for up to **5 days**. The server checks token age on startup and will prompt you to re-authenticate with `schwab-mcp auth` if the token has expired.
 
 ### Running the Server
 

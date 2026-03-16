@@ -4,7 +4,7 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 
 > **Fork Notice**: This project is forked from [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp) and is a **complete rewrite** in TypeScript using [Bun](https://bun.sh/) as the runtime, bundler, and test runner. The original project is a Python-based MCP server with trading capabilities and Discord approval workflows. This rewrite strips all trading functionality and focuses exclusively on read-only portfolio monitoring and market analysis.
 
-> **Security**: For security reasons, all trading, options placement, and order management capabilities have been intentionally removed. This server is designed exclusively as a read-only portfolio data source — no orders can be placed, modified, or cancelled. This ensures that even if an LLM agent behaves unexpectedly, it cannot execute trades or modify your account.
+> **Security**: Following the [principle of least privilege](https://en.wikipedia.org/wiki/Principle_of_least_privilege), all trading, options placement, and order management capabilities have been intentionally removed from this fork. This server is designed exclusively as a read-only portfolio data source — no orders can be placed, modified, or cancelled. Rather than gating trades behind approval workflows, the trading code has been eliminated entirely, so even if an LLM agent is prompt-injected or behaves unexpectedly, it cannot execute trades or modify your account. If you need trading capabilities, see the original project at [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp).
 
 ## Features
 

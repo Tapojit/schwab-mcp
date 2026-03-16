@@ -202,7 +202,3 @@ Test the server interactively with the MCP Inspector:
 ```bash
 npx @modelcontextprotocol/inspector bun run src/index.ts server
 ```
-
-## License
-
-MIT License.

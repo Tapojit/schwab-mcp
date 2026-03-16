@@ -209,16 +209,17 @@ export async function clientFromLoginFlow(
           );
           tokenManager.save(oauthToken);
           clearTimeout(timeout);
-          server.stop(true);
           resolve(oauthToken);
+          // Delay server shutdown so the response reaches the browser
+          setTimeout(() => server.stop(true), 1000);
           return new Response(
             "<html><body><h1>Authentication successful!</h1><p>You can close this window.</p></body></html>",
             { headers: { "Content-Type": "text/html" } },
           );
         } catch (err) {
           clearTimeout(timeout);
-          server.stop(true);
           reject(err);
+          setTimeout(() => server.stop(true), 1000);
           return new Response("Authentication failed", { status: 500 });
         }
       },

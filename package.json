@@ -1,10 +1,68 @@
 {
   "name": "schwab-mcp",
   "version": "0.1.0",
+  "description": "A read-only Model Context Protocol (MCP) server for Schwab brokerage — portfolio monitoring, market data, and technical analysis via LLM agents. Complete Bun rewrite.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tapojit/schwab-mcp.git"
+  },
+  "homepage": "https://github.com/Tapojit/schwab-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/Tapojit/schwab-mcp/issues"
+  },
+  "keywords": [
+    "schwab",
+    "mcp",
+    "model-context-protocol",
+    "brokerage",
+    "trading",
+    "market-data",
+    "technical-analysis",
+    "llm",
+    "claude",
+    "bun"
+  ],
+  "author": "Tapojit",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "bin": {
     "schwab-mcp": "./src/index.ts"
   },
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./server": {
+      "import": "./src/server.ts",
+      "types": "./src/server.ts"
+    },
+    "./client": {
+      "import": "./src/client.ts",
+      "types": "./src/client.ts"
+    },
+    "./auth": {
+      "import": "./src/auth.ts",
+      "types": "./src/auth.ts"
+    },
+    "./tokens": {
+      "import": "./src/tokens.ts",
+      "types": "./src/tokens.ts"
+    },
+    "./types": {
+      "import": "./src/types.ts",
+      "types": "./src/types.ts"
+    }
+  },
+  "files": [
+    "src/",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "bun run src/index.ts server",
     "build": "bun build src/index.ts --outdir dist --target bun",

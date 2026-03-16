@@ -1,0 +1,26 @@
+{
+  "name": "schwab-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "schwab-mcp": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts server",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "dev": "npx @modelcontextprotocol/inspector bun run src/index.ts server"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "commander": "^13.1.0",
+    "technicalindicators": "^3.1.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.14",
+    "@types/node": "22",
+    "typescript": "^5.8.3"
+  }
+}

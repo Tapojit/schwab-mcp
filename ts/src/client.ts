@@ -1,0 +1,268 @@
+import { SchwabAPIError } from "./types.js";
+import type {
+  OAuthToken,
+  PriceHistoryOptions,
+  OrderQueryOptions,
+  TransactionQueryOptions,
+  JSONValue,
+} from "./types.js";
+import { TokenManager } from "./tokens.js";
+import { refreshToken } from "./auth.js";
+
+export class SchwabClient {
+  private accessToken: string;
+  private tokenData: OAuthToken;
+
+  constructor(
+    private readonly clientId: string,
+    private readonly clientSecret: string,
+    private readonly tokenManager: TokenManager,
+    private readonly baseUrl: string = "https://api.schwabapi.com",
+  ) {
+    this.tokenData = tokenManager.load();
+    this.accessToken = this.tokenData.access_token;
+  }
+
+  private async ensureFreshToken(): Promise<void> {
+    const expiresAt = this.tokenData.created_at + this.tokenData.expires_in * 1000;
+    if (Date.now() < expiresAt) return;
+
+    const refreshed = await refreshToken(
+      this.clientId,
+      this.clientSecret,
+      this.tokenData.refresh_token,
+      this.baseUrl,
+    );
+    this.tokenManager.save(refreshed);
+    this.tokenData = refreshed;
+    this.accessToken = refreshed.access_token;
+  }
+
+  private async request(
+    path: string,
+    params?: Record<string, string | undefined>,
+  ): Promise<JSONValue> {
+    await this.ensureFreshToken();
+
+    const url = new URL(path, this.baseUrl);
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) url.searchParams.set(k, v);
+      }
+    }
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      // Retry once on 401 (token may have been invalidated server-side)
+      if (res.status === 401) {
+        try {
+          const refreshed = await refreshToken(
+            this.clientId,
+            this.clientSecret,
+            this.tokenData.refresh_token,
+            this.baseUrl,
+          );
+          this.tokenManager.save(refreshed);
+          this.tokenData = refreshed;
+          this.accessToken = refreshed.access_token;
+
+          const retry = await fetch(url.toString(), {
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+              Accept: "application/json",
+            },
+          });
+          if (!retry.ok) {
+            const retryBody = await retry.text();
+            throw new SchwabAPIError(retry.status, url.toString(), retryBody);
+          }
+          if (retry.status === 204) return null;
+          return (await retry.json()) as JSONValue;
+        } catch (err) {
+          if (err instanceof SchwabAPIError) throw err;
+          throw new SchwabAPIError(res.status, url.toString(), body);
+        }
+      }
+      throw new SchwabAPIError(res.status, url.toString(), body);
+    }
+
+    if (res.status === 204) return null;
+    const contentLength = res.headers.get("content-length");
+    if (contentLength === "0") return null;
+
+    return (await res.json()) as JSONValue;
+  }
+
+  // ── Trader API: Accounts ──
+
+  async getAccountNumbers(): Promise<JSONValue> {
+    return this.request("/trader/v1/accounts/accountNumbers");
+  }
+
+  async getAccounts(fields?: string): Promise<JSONValue> {
+    return this.request("/trader/v1/accounts", {
+      fields,
+    });
+  }
+
+  async getAccount(accountHash: string, fields?: string): Promise<JSONValue> {
+    return this.request(`/trader/v1/accounts/${accountHash}`, {
+      fields,
+    });
+  }
+
+  async getUserPreferences(): Promise<JSONValue> {
+    return this.request("/trader/v1/userPreference");
+  }
+
+  // ── Trader API: Orders ──
+
+  async getOrder(
+    accountHash: string,
+    orderId: string,
+  ): Promise<JSONValue> {
+    return this.request(
+      `/trader/v1/accounts/${accountHash}/orders/${orderId}`,
+    );
+  }
+
+  async getOrdersForAccount(
+    accountHash: string,
+    opts: OrderQueryOptions = {},
+  ): Promise<JSONValue> {
+    return this.request(`/trader/v1/accounts/${accountHash}/orders`, {
+      maxResults: opts.maxResults?.toString(),
+      fromEnteredTime: opts.fromEnteredTime,
+      toEnteredTime: opts.toEnteredTime,
+      status: opts.status,
+    });
+  }
+
+  // ── Trader API: Transactions ──
+
+  async getTransactions(
+    accountHash: string,
+    opts: TransactionQueryOptions = {},
+  ): Promise<JSONValue> {
+    return this.request(
+      `/trader/v1/accounts/${accountHash}/transactions`,
+      {
+        startDate: opts.startDate,
+        endDate: opts.endDate,
+        types: opts.types,
+        symbol: opts.symbol,
+      },
+    );
+  }
+
+  async getTransaction(
+    accountHash: string,
+    transactionId: string,
+  ): Promise<JSONValue> {
+    return this.request(
+      `/trader/v1/accounts/${accountHash}/transactions/${transactionId}`,
+    );
+  }
+
+  // ── Market Data API: Quotes ──
+
+  async getQuotes(
+    symbols: string[],
+    fields?: string,
+    indicative?: boolean,
+  ): Promise<JSONValue> {
+    return this.request("/marketdata/v1/quotes", {
+      symbols: symbols.join(","),
+      fields,
+      indicative: indicative?.toString(),
+    });
+  }
+
+  // ── Market Data API: Price History ──
+
+  async getPriceHistory(
+    symbol: string,
+    opts: PriceHistoryOptions = {},
+  ): Promise<JSONValue> {
+    return this.request("/marketdata/v1/pricehistory", {
+      symbol,
+      periodType: opts.periodType,
+      period: opts.period?.toString(),
+      frequencyType: opts.frequencyType,
+      frequency: opts.frequency?.toString(),
+      startDate: opts.startDate?.toString(),
+      endDate: opts.endDate?.toString(),
+      needExtendedHoursData: opts.needExtendedHoursData?.toString(),
+      needPreviousClose: opts.needPreviousClose?.toString(),
+    });
+  }
+
+  // ── Market Data API: Movers ──
+
+  async getMovers(
+    index: string,
+    sort?: string,
+    frequency?: number,
+  ): Promise<JSONValue> {
+    return this.request(`/marketdata/v1/movers/${index}`, {
+      sort,
+      frequency: frequency?.toString(),
+    });
+  }
+
+  // ── Market Data API: Market Hours ──
+
+  async getMarketHours(
+    markets: string[],
+    date?: string,
+  ): Promise<JSONValue> {
+    return this.request("/marketdata/v1/markets", {
+      markets: markets.join(","),
+      date,
+    });
+  }
+
+  async getMarketHoursForMarket(
+    market: string,
+    date?: string,
+  ): Promise<JSONValue> {
+    return this.request(`/marketdata/v1/markets/${market}`, {
+      date,
+    });
+  }
+
+  // ── Market Data API: Instruments ──
+
+  async getInstruments(
+    symbol: string,
+    projection: string,
+  ): Promise<JSONValue> {
+    return this.request("/marketdata/v1/instruments", {
+      symbol,
+      projection,
+    });
+  }
+
+  async getInstrumentByCusip(cusip: string): Promise<JSONValue> {
+    return this.request(`/marketdata/v1/instruments/${cusip}`);
+  }
+
+  // ── Market Data API: Option Chains ──
+
+  async getOptionChain(
+    params: Record<string, string | undefined>,
+  ): Promise<JSONValue> {
+    return this.request("/marketdata/v1/chains", params);
+  }
+
+  async getExpirationChain(symbol: string): Promise<JSONValue> {
+    return this.request("/marketdata/v1/expirationchain", { symbol });
+  }
+}

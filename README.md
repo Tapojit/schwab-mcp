@@ -2,6 +2,8 @@
 
 A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) server that connects your Schwab brokerage account to LLM-based applications (Claude Desktop, Claude Code, or other MCP clients) for portfolio monitoring and market data retrieval.
 
+> **Fork Notice**: This project is forked from [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp) and is a **complete rewrite** in TypeScript using [Bun](https://bun.sh/) as the runtime, bundler, and test runner. The original project is a Python-based MCP server with trading capabilities and Discord approval workflows. This rewrite strips all trading functionality and focuses exclusively on read-only portfolio monitoring and market analysis.
+
 > **This fork has been stripped of all trading, options placement, and order management capabilities.** It is designed exclusively as a portfolio data source — no orders can be placed, modified, or cancelled through this server.
 
 ## Features
@@ -20,13 +22,27 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 
 ### Installation
 
+#### From npm / bun registry
+
+```bash
+bun add schwab-mcp
+```
+
+Or install globally as a CLI:
+
+```bash
+bun add -g schwab-mcp
+```
+
+#### From source
+
 ```bash
 git clone https://github.com/Tapojit/schwab-mcp.git
 cd schwab-mcp
 bun install
 ```
 
-Or build a standalone executable:
+#### Standalone binary
 
 ```bash
 bun build src/index.ts --compile --outfile schwab-mcp
@@ -36,7 +52,7 @@ bun build src/index.ts --compile --outfile schwab-mcp
 ### Save Credentials
 
 ```bash
-bun run src/index.ts save-credentials --client-id YOUR_KEY --client-secret YOUR_SECRET
+schwab-mcp save-credentials --client-id YOUR_KEY --client-secret YOUR_SECRET
 ```
 
 Or set environment variables:
@@ -50,7 +66,7 @@ export SCHWAB_CLIENT_SECRET=YOUR_SECRET
 Generate a token file by logging in to Schwab:
 
 ```bash
-bun run src/index.ts auth
+schwab-mcp auth
 ```
 
 This opens a browser for Schwab OAuth. A local HTTPS callback server captures the authorization code. The token is saved to:
@@ -62,7 +78,18 @@ This opens a browser for Schwab OAuth. A local HTTPS callback server captures th
 ### Running the Server
 
 ```bash
-bun run src/index.ts server
+schwab-mcp server
+```
+
+## Programmatic Usage
+
+This package exports its core modules for use as a library:
+
+```typescript
+import { SchwabMCPServer } from "schwab-mcp/server";
+import { SchwabClient } from "schwab-mcp/client";
+import { TokenManager } from "schwab-mcp/tokens";
+import type { OAuthToken, Candle } from "schwab-mcp/types";
 ```
 
 ## Configuration
@@ -146,7 +173,20 @@ Official Schwab API specs are included in `docs/openapi/` for reference:
 
 Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.json` or Claude Code `settings.json`):
 
-### Using Bun directly
+### Using the installed package
+
+```json
+{
+  "mcpServers": {
+    "schwab": {
+      "command": "schwab-mcp",
+      "args": ["server"]
+    }
+  }
+}
+```
+
+### Using Bun directly (from source)
 
 ```json
 {
@@ -202,3 +242,17 @@ Test the server interactively with the MCP Inspector:
 ```bash
 npx @modelcontextprotocol/inspector bun run src/index.ts server
 ```
+
+## Acknowledgments
+
+This project is a fork of [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp), originally a Python-based MCP server for Schwab brokerage integration. This version is a **complete rewrite** using:
+
+- **[Bun](https://bun.sh/)** as the runtime, package manager, bundler, and test runner (replacing Python/pip/pytest)
+- **TypeScript** with strict typing (replacing Python type hints)
+- **Read-only design** — all trading, order placement, and Discord approval workflows have been removed
+- **[@modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk)** for MCP protocol integration
+- **[technicalindicators](https://www.npmjs.com/package/technicalindicators)** for technical analysis (replacing custom Python implementations)
+
+## License
+
+[MIT](LICENSE)

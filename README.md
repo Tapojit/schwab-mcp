@@ -8,32 +8,36 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 
 - **Market Data**: Real-time quotes, price history (multiple timeframes), market hours, movers, and instrument search.
 - **Account Info**: Balances, positions, transactions, and order history (read-only).
-- **Technical Analysis**: Optional indicators (SMA, EMA, RSI, MACD, Bollinger Bands, VWAP, ATR, ADX, and more) powered by pandas-ta.
+- **Technical Analysis**: Optional indicators (SMA, EMA, RSI, MACD, Bollinger Bands, VWAP, ATR, ADX, and more) powered by [technicalindicators](https://www.npmjs.com/package/technicalindicators).
 - **LLM Integration**: Built for agentic AI workflows via the MCP protocol.
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) (recommended) or `pip`
+- [Bun](https://bun.sh/) v1.0+ (runtime, bundler, and test runner)
 - Schwab Developer App Key and Secret ([Schwab Developer Portal](https://developer.schwab.com/))
 
 ### Installation
 
 ```bash
-# Using uv (recommended)
-uv tool install git+https://github.com/Tapojit/schwab-mcp.git
+git clone https://github.com/Tapojit/schwab-mcp.git
+cd schwab-mcp/ts
+bun install
+```
 
-# Using pip
-pip install git+https://github.com/Tapojit/schwab-mcp.git
+Or build a standalone executable:
+
+```bash
+cd ts
+bun build src/index.ts --compile --outfile schwab-mcp
+# Produces a single-file binary (~59MB) with no runtime dependencies
 ```
 
 ### Save Credentials
 
 ```bash
-schwab-mcp save-credentials
-# Prompts for Client ID and Client Secret, saves to local config
+bun run src/index.ts save-credentials --client-id YOUR_KEY --client-secret YOUR_SECRET
 ```
 
 Or set environment variables:
@@ -47,15 +51,19 @@ export SCHWAB_CLIENT_SECRET=YOUR_SECRET
 Generate a token file by logging in to Schwab:
 
 ```bash
-schwab-mcp auth
+bun run src/index.ts auth
 ```
 
-This opens a browser for Schwab OAuth. The token is saved to `~/.local/share/schwab-mcp/token.yaml`.
+This opens a browser for Schwab OAuth. A local HTTPS callback server captures the authorization code. The token is saved to:
+- **macOS**: `~/Library/Application Support/schwab-mcp/token.json`
+- **Linux**: `~/.local/share/schwab-mcp/token.json`
+
+> **Note**: Your browser will warn about an invalid certificate — this is expected. The callback server uses a self-signed TLS certificate for localhost.
 
 ### Running the Server
 
 ```bash
-schwab-mcp server
+bun run src/index.ts server
 ```
 
 ## Configuration
@@ -65,9 +73,9 @@ schwab-mcp server
 | `--client-id` | `SCHWAB_CLIENT_ID` | Schwab App Key |
 | `--client-secret` | `SCHWAB_CLIENT_SECRET` | Schwab App Secret |
 | `--callback-url` | `SCHWAB_CALLBACK_URL` | Redirect URL (default: `https://127.0.0.1:8182`) |
-| `--token-path` | — | Path to token file (default: `~/.local/share/schwab-mcp/token.yaml`) |
+| `--base-url` | `SCHWAB_BASE_URL` | API base URL (default: `https://api.schwabapi.com`) |
+| `--token-path` | — | Path to token file (default: platform-specific, see above) |
 | `--no-technical-tools` | — | Disable technical analysis tools |
-| `--json` | — | Return raw JSON instead of Toon-encoded strings |
 
 ## Available Tools (35 total)
 
@@ -126,7 +134,7 @@ schwab-mcp server
 | `historical_volatility` | Historical volatility statistics |
 | `expected_move` | Option-priced expected move (±1 SD) |
 
-> Technical analysis tools require `pandas` and `pandas-ta-classic`. Install with: `uv sync --group ta`
+> Disable with `--no-technical-tools` if not needed.
 
 ## OpenAPI Specifications
 
@@ -139,49 +147,61 @@ Official Schwab API specs are included in `docs/openapi/` for reference:
 
 Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.json` or Claude Code `settings.json`):
 
+### Using Bun directly
+
 ```json
 {
   "mcpServers": {
     "schwab": {
-      "command": "/full/path/to/uv",
+      "command": "/full/path/to/bun",
       "args": [
-        "--directory",
-        "/path/to/schwab-mcp",
         "run",
-        "schwab-mcp",
-        "server",
-        "--json"
+        "/path/to/schwab-mcp/ts/src/index.ts",
+        "server"
       ]
     }
   }
 }
 ```
 
-> **Important**: Use the full absolute path to `uv` (e.g., `~/.local/bin/uv` or the output of `which uv`). A bare `"uv"` may not resolve in the MCP client's environment.
+### Using the compiled binary
+
+```json
+{
+  "mcpServers": {
+    "schwab": {
+      "command": "/path/to/schwab-mcp",
+      "args": ["server"]
+    }
+  }
+}
+```
+
+> **Important**: Use full absolute paths. A bare `"bun"` may not resolve in the MCP client's environment.
 
 ## Development
 
 ```bash
 git clone https://github.com/Tapojit/schwab-mcp.git
-cd schwab-mcp
-uv sync --group dev --group ta
+cd schwab-mcp/ts
+bun install
 
 # Run tests
-uv run pytest
-
-# Lint and format
-uv run ruff format . && uv run ruff check .
+bun test
 
 # Type check
-uv run pyright
+bun run typecheck
+
+# Build standalone binary
+bun build src/index.ts --compile --outfile schwab-mcp
 ```
 
 ### MCP Inspector
 
-A dev server is included for testing with the MCP Inspector:
+Test the server interactively with the MCP Inspector:
 
 ```bash
-uv run mcp dev dev_server.py:mcp -e .
+npx @modelcontextprotocol/inspector bun run src/index.ts server
 ```
 
 ## License

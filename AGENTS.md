@@ -3,31 +3,30 @@
 ## Project Structure
 
 ```
-ts/                           # Bun + TypeScript MCP server
-  src/
-    index.ts                  # CLI entry point (commander)
-    server.ts                 # SchwabMCPServer class, MCP SDK integration
-    client.ts                 # SchwabClient — authenticated fetch wrapper
-    auth.ts                   # OAuth2 browser flow (local HTTPS callback)
-    tokens.ts                 # Token load/save/refresh, credentials management
-    resources.ts              # MCP resource definitions (order statuses)
-    types.ts                  # TypeScript types from OpenAPI schemas
-    tools/
-      index.ts                # registerTools() aggregator
-      utils.ts                # Shared helpers (date parsing, formatResult)
-      market.ts               # get_datetime, get_market_hours, get_movers, get_instruments
-      accounts.ts             # Account and preferences tools (6 tools)
-      quotes.ts               # get_quotes
-      history.ts              # Price history tools (8 tools, factory pattern)
-      orders.ts               # get_order, get_orders (multi-status merge)
-      transactions.ts         # get_transactions, get_transaction
-      technical.ts            # 12 TA indicators via technicalindicators
-  tests/
-    setup.ts                  # makeMockClient() factory
-    *.test.ts                 # Mirror source structure
-    tools/*.test.ts           # Tool-specific tests
-  package.json
-  tsconfig.json
+src/
+  index.ts                    # CLI entry point (commander)
+  server.ts                   # SchwabMCPServer class, MCP SDK integration
+  client.ts                   # SchwabClient — authenticated fetch wrapper
+  auth.ts                     # OAuth2 browser flow (local HTTPS callback)
+  tokens.ts                   # Token load/save/refresh, credentials management
+  resources.ts                # MCP resource definitions (order statuses)
+  types.ts                    # TypeScript types from OpenAPI schemas
+  tools/
+    index.ts                  # registerTools() aggregator
+    utils.ts                  # Shared helpers (date parsing, formatResult)
+    market.ts                 # get_datetime, get_market_hours, get_movers, get_instruments
+    accounts.ts               # Account and preferences tools (6 tools)
+    quotes.ts                 # get_quotes
+    history.ts                # Price history tools (8 tools, factory pattern)
+    orders.ts                 # get_order, get_orders (multi-status merge)
+    transactions.ts           # get_transactions, get_transaction
+    technical.ts              # 12 TA indicators via technicalindicators
+tests/
+  setup.ts                    # makeMockClient() factory
+  *.test.ts                   # Mirror source structure
+  tools/*.test.ts             # Tool-specific tests
+package.json
+tsconfig.json
 docs/
   openapi/                    # Schwab API OpenAPI 3.x specifications
 ```
@@ -42,7 +41,7 @@ Every registered tool has `readOnlyHint: true`. Do not add write operations.
 
 ```bash
 # Install dependencies
-cd ts && bun install
+bun install
 
 # Run the CLI
 bun run src/index.ts --help

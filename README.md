@@ -22,14 +22,13 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 
 ```bash
 git clone https://github.com/Tapojit/schwab-mcp.git
-cd schwab-mcp/ts
+cd schwab-mcp
 bun install
 ```
 
 Or build a standalone executable:
 
 ```bash
-cd ts
 bun build src/index.ts --compile --outfile schwab-mcp
 # Produces a single-file binary (~59MB) with no runtime dependencies
 ```
@@ -156,7 +155,7 @@ Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.
       "command": "/full/path/to/bun",
       "args": [
         "run",
-        "/path/to/schwab-mcp/ts/src/index.ts",
+        "/path/to/schwab-mcp/src/index.ts",
         "server"
       ]
     }
@@ -183,7 +182,7 @@ Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.
 
 ```bash
 git clone https://github.com/Tapojit/schwab-mcp.git
-cd schwab-mcp/ts
+cd schwab-mcp
 bun install
 
 # Run tests

@@ -1,20 +1,10 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-build/
+# Dependencies
+node_modules/
 
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool
-*.out
-*.html
-
-# Go workspace file
-go.work
+# Build output
+dist/
+schwab-mcp
+*.tsbuildinfo
 
 # OS specific files
 .DS_Store
@@ -30,40 +20,11 @@ Thumbs.db
 # Log files
 *.log
 
-# Build artifacts
-/bin/
-/tmp/
-
-# Dependency directories
-/vendor/
-
-# Claude-specific files
-claude_compact_history.txt
-claude_compact_recent.txt
-CLAUDE.md
-TODO.md
-AGENTS.md
-info/
-
 # Environment files
 .env
 
-# Python
+# Legacy Python artifacts (safe to remove if found)
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-.venv
-venv/
-ENV/
-env/
-*.egg
-*.egg-info/
-dist/
-build/
+.venv/
 .pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-.ruff_cache/

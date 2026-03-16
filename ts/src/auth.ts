@@ -1,4 +1,7 @@
 import { execSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { OAuthToken } from "./types.js";
 import { TokenManager } from "./tokens.js";
 
@@ -175,11 +178,12 @@ export async function clientFromLoginFlow(
       );
     }, callbackTimeout * 1000);
 
+    const tls = generateSelfSignedTls();
     const server = Bun.serve({
       port,
       tls: {
-        cert: selfSignedCert(),
-        key: selfSignedKey(),
+        cert: tls.cert,
+        key: tls.key,
       },
       async fetch(req) {
         const url = new URL(req.url);
@@ -277,52 +281,29 @@ export async function easyClient(opts: AuthOptions): Promise<OAuthToken> {
   return clientFromLoginFlow(opts);
 }
 
-// Self-signed cert generation for local callback server
-// These are generated once and embedded — adequate for localhost OAuth callback
-function selfSignedCert(): string {
-  return `-----BEGIN CERTIFICATE-----
-MIICpDCCAYwCCQDU+pQ4pHgSpDANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
-b2NhbGhvc3QwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjAUMRIwEAYD
-VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
-o4qne60TB3pRBMzSBMbMKeFUGkJPHYAhIDe0MlFahbOoey1E3pW5UKr5WKZMSRST
-q4NenEJRQ0hJiGJIGPl1Ri/L7Eel/cGFRNMFHBzQGKYCX+AZZX6lJOhQUTGGNR6
-x0GwVBMGKgPnqFfwRAsJRh+DqbQXBY9sZ7E+BLIak0MRFmmnyTEHGnOlhT1CZTUU
-KDuH2Rj0Sy1GOqYEZJPn7PQKyVizS/vy7PxpFG3JFe3Yku4SOFl6JMFaB0me22p
-DDv05FUZDNDqaYrA2aQ/aqNqH/1xVPQyMJ3Sl1a3vRdLy5UDndECnGbPNz0MMGE
-Y0IoMn3nLF99Y1M6sLnlAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAGmLq4ZPJGZK
-OAdMHE+hPi5pRO7PkZo28SQ80l/OuVDffLNWiGPqW3E9CbcK2PFKUsOgJR+e7bNJ
-o9h1+w0GRpOsEXTo07Js3cO9Fn4x4TX87qRDcYAD1ypxjWLqJw2GBfwn9OgB6kU
-SckgpH8L0O8m1h4cNEPjDI+gqBRJHi/J3kXqGMW+GINR+Fv8P/4Va6SNfTDnBGKj
-cX3YOTvNbFN26GkNJo6wrEFk6hGyKw3E/YCwPGyRDFC4sEHrfGJ3VjOTdVz0o+9S
-qla3rPVfrb1PByBD3E2qRaKHsY2KBQM3LUFODRM4BgIAkQaJ0jGNqZG2QBt3lbXk
-6PpQ7Cdj+CI=
------END CERTIFICATE-----`;
-}
+// Generate a self-signed certificate at runtime for the local OAuth callback server.
+// The cert/key are created in a temp directory and cleaned up after use.
+let _cachedTls: { cert: string; key: string } | null = null;
 
-function selfSignedKey(): string {
-  return `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7o4qne60TB3pR
-BMzSBMbMKeFUGkJPHYAhIDe0MlFahbOoey1E3pW5UKr5WKZMSRSTQ4NenEJRQ0hJ
-iGJIGPl1Ri/L7Eel/cGFRNMFHBzQGKYCX+AZZX6lJOhQUTGGNR6x0GwVBMGKgPnq
-FfwRAsJRh+DqbQXBY9sZ7E+BLIak0MRFmmnyTEHGnOlhT1CZTUUKDuH2Rj0Sy1GO
-qYEZJPn7PQKyVizS/vy7PxpFG3JFe3Yku4SOFl6JMFaB0me22pDDv05FUZDNDqaY
-rA2aQ/aqNqH/1xVPQyMJ3Sl1a3vRdLy5UDndECnGbPNz0MMGEY0IoMn3nLF99Y1M
-6sLnlAgMBAAECggEAF2+JZpaqq6ZZFLQRBU/crl3CJVe5q9hTN44vtPhCLzHt9D7z
-YYYW5S7bUyEL7LNCD3b/MCT2FPG8LaPDAzgK5FqN3JKxiYC8e9b1OjyiuGXKOxKm
-8CtII5Iv1fcYjNW9NVKy7O5G2L1IzeYn3J3/CGTXhxOkMjGo5W26JcsfH5Hx7BWY
-p6fWzScdmcGFpHsLfATk3Cni/R5aGXAD/5eiZ7gFp77Pa+vF5Ql/z2WT8wM3MK4R
-GIJT1YqXSd/TOjPNM7z08iK3OQlA5Lk2S78D3gS2N13PKRG7WC/OHNY0VLf2VxaE
-v0lbSMhjD1K/za5bFQOJDvI5QG4rPHOKSQEFHQKBgQD0M1kORX/O9ACKnvYwr/Pj
-IFCDkOWkVcA3K1pH9jn/VFJlq8A/LKGxL+uQ9J1YSHKj0MdjME4W5ZQ/MYcMP3+E
-RzFiIwQOSNIoJ9i6tMq9ZX9TFRCzjD2PDwRGHz5bVHfZaGr4/O8GEb7jLIhHcfTw
-KvHGwJCrYLPQ7SrfPJcbrwKBgQDkLZhd7r0lJN7XNVeD4xhGlLB+1/+OxhRxwh+3
-PvCK3Xs+cjijsMMp/WT7txdA7IREn0A1KO8SjTy98OMXSJnbWXzzqFJnK0k8N3XH
-RPV3q9M8B3kCT4Omu5h/Nq+eBPKcIqtnQ3Jh/JQP3nRL9V8XRQH5+d6kCBIR+Y0
-XqhLKwKBgGVz3Q+Q8GFC0j6eU+iRMniexLcHPQDp5EPf1XEB8gPJ+G3L0UV/4Q/e
-GkzN2pZzN/25nXT0seFNaHmi6DBF7wGN6wVH3KYYHuBPHOP/MrAX3eUJTK/2OQNZ
-i3FMYwb9XHqo9FNBjkD+0PnHb+Z0L0vHPBGlBGHYhrLNMGJOYb0PAYJ/oIBNMXFk
-TlA7pFc+C1Y4aNO8Qc7oZqGFJVnWFx/f/UoYcKYS8EZ4e0k3P9RPIW0bF8M4Hkk
-djp7BhAQJPu5HS2b6FUHO8dbFaCd6pct/fRMzIFaP2K/n5Tl7P1pCOa5U+bMF1i5
-NZMAK5fRbLH9ORMNPVf6+VTBrENfHN7X
------END PRIVATE KEY-----`;
+function generateSelfSignedTls(): { cert: string; key: string } {
+  if (_cachedTls) return _cachedTls;
+
+  const dir = mkdtempSync(join(tmpdir(), "schwab-mcp-tls-"));
+  const keyPath = join(dir, "key.pem");
+  const certPath = join(dir, "cert.pem");
+
+  try {
+    execSync(
+      `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 365 -nodes -subj '/CN=127.0.0.1' 2>/dev/null`,
+    );
+
+    const cert = readFileSync(certPath, "utf-8");
+    const key = readFileSync(keyPath, "utf-8");
+    _cachedTls = { cert, key };
+    return _cachedTls;
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  }
 }

@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { createServer, type Server } from "node:https";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -168,8 +169,10 @@ export async function clientFromLoginFlow(
 
   // Start local HTTPS server to capture callback
   const token = await new Promise<OAuthToken>((resolve, reject) => {
+    let server: Server;
+
     const timeout = setTimeout(() => {
-      server.stop(true);
+      server.close();
       reject(
         new Error(
           "Timed out waiting for OAuth callback. " +
@@ -179,24 +182,24 @@ export async function clientFromLoginFlow(
     }, callbackTimeout * 1000);
 
     const tls = generateSelfSignedTls();
-    const server = Bun.serve({
-      port,
-      tls: {
-        cert: tls.cert,
-        key: tls.key,
-      },
-      async fetch(req) {
-        const url = new URL(req.url);
+    server = createServer(
+      { cert: tls.cert, key: tls.key },
+      async (req, res) => {
+        const url = new URL(req.url ?? "/", `https://127.0.0.1:${port}`);
 
         // Health check endpoint
         if (url.pathname === "/schwab-py-internal/status") {
-          return new Response("ok");
+          res.writeHead(200);
+          res.end("ok");
+          return;
         }
 
         // Capture the authorization code
         const code = url.searchParams.get("code");
         if (!code) {
-          return new Response("No authorization code received", { status: 400 });
+          res.writeHead(400);
+          res.end("No authorization code received");
+          return;
         }
 
         try {
@@ -210,20 +213,23 @@ export async function clientFromLoginFlow(
           tokenManager.save(oauthToken);
           clearTimeout(timeout);
           resolve(oauthToken);
-          // Delay server shutdown so the response reaches the browser
-          setTimeout(() => server.stop(true), 1000);
-          return new Response(
+          res.writeHead(200, { "Content-Type": "text/html" });
+          res.end(
             "<html><body><h1>Authentication successful!</h1><p>You can close this window.</p></body></html>",
-            { headers: { "Content-Type": "text/html" } },
           );
+          // Delay server shutdown so the response reaches the browser
+          setTimeout(() => server.close(), 1000);
         } catch (err) {
           clearTimeout(timeout);
           reject(err);
-          setTimeout(() => server.stop(true), 1000);
-          return new Response("Authentication failed", { status: 500 });
+          res.writeHead(500);
+          res.end("Authentication failed");
+          setTimeout(() => server.close(), 1000);
         }
       },
-    });
+    );
+
+    server.listen(port);
   });
 
   return token;

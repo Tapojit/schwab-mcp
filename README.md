@@ -2,7 +2,7 @@
 
 A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) server that connects your Schwab brokerage account to LLM-based applications (Claude Desktop, Claude Code, or other MCP clients) for portfolio monitoring and market data retrieval.
 
-> **Fork Notice**: This project is forked from [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp) and is a **complete rewrite** in TypeScript using [Bun](https://bun.sh/) as the runtime, bundler, and test runner. The original project is a Python-based MCP server with trading capabilities and Discord approval workflows. This rewrite strips all trading functionality and focuses exclusively on read-only portfolio monitoring and market analysis.
+> **Fork Notice**: This project is forked from [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp) and is a **complete rewrite** in TypeScript. The original project is a Python-based MCP server with trading capabilities and Discord approval workflows. This rewrite strips all trading functionality and focuses exclusively on read-only portfolio monitoring and market analysis.
 
 > **Security**: Following the [principle of least privilege](https://en.wikipedia.org/wiki/Principle_of_least_privilege), all trading, options placement, and order management capabilities have been intentionally removed from this fork. This server is designed exclusively as a read-only portfolio data source — no orders can be placed, modified, or cancelled. Rather than gating trades behind approval workflows, the trading code has been eliminated entirely, so even if an LLM agent is prompt-injected or behaves unexpectedly, it cannot execute trades or modify your account. If you need trading capabilities, see the original project at [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp).
 
@@ -17,7 +17,7 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.0+ (runtime, bundler, and test runner)
+- [Node.js](https://nodejs.org/) v18+ (or [Bun](https://bun.sh/) v1.0+ for development)
 - A Schwab brokerage account
 - A Schwab Developer App Key (client ID) and Secret (client secret)
 
@@ -32,16 +32,12 @@ A **read-only** [Model Context Protocol](https://modelcontextprotocol.io/) serve
 
 ### Installation
 
-#### From npm / bun registry
+#### Using npx (recommended)
+
+No installation required — run directly via `npx`:
 
 ```bash
-bun add schwab-mcp
-```
-
-Or install globally as a CLI:
-
-```bash
-bun add -g schwab-mcp
+npx github:Tapojit/schwab-mcp server
 ```
 
 #### From source
@@ -49,14 +45,8 @@ bun add -g schwab-mcp
 ```bash
 git clone https://github.com/Tapojit/schwab-mcp.git
 cd schwab-mcp
-bun install
-```
-
-#### Standalone binary
-
-```bash
-bun build src/index.ts --compile --outfile schwab-mcp
-# Produces a single-file binary (~59MB) with no runtime dependencies
+npm install
+npm run build
 ```
 
 ### Save Credentials
@@ -198,29 +188,28 @@ Official Schwab API specs are included in `docs/openapi/` for reference:
 
 Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.json` or Claude Code `settings.json`):
 
-### Using the installed package
+### Using npx (recommended)
 
 ```json
 {
   "mcpServers": {
     "schwab": {
-      "command": "schwab-mcp",
-      "args": ["server"]
+      "command": "npx",
+      "args": ["-y", "github:Tapojit/schwab-mcp", "server"]
     }
   }
 }
 ```
 
-### Using Bun directly (from source)
+### Using a local clone
 
 ```json
 {
   "mcpServers": {
     "schwab": {
-      "command": "/full/path/to/bun",
+      "command": "node",
       "args": [
-        "run",
-        "/path/to/schwab-mcp/src/index.ts",
+        "/path/to/schwab-mcp/dist/index.js",
         "server"
       ]
     }
@@ -228,36 +217,23 @@ Add this to your MCP client config (e.g., Claude Desktop `claude_desktop_config.
 }
 ```
 
-### Using the compiled binary
-
-```json
-{
-  "mcpServers": {
-    "schwab": {
-      "command": "/path/to/schwab-mcp",
-      "args": ["server"]
-    }
-  }
-}
-```
-
-> **Important**: Use full absolute paths. A bare `"bun"` may not resolve in the MCP client's environment.
+> **Important**: Use full absolute paths for local clones. A bare `"node"` may not resolve in the MCP client's environment — use the full path (e.g., `/usr/local/bin/node`) if needed.
 
 ## Development
 
 ```bash
 git clone https://github.com/Tapojit/schwab-mcp.git
 cd schwab-mcp
-bun install
+npm install
 
-# Run tests
+# Build
+npm run build
+
+# Run tests (requires Bun)
 bun test
 
 # Type check
-bun run typecheck
-
-# Build standalone binary
-bun build src/index.ts --compile --outfile schwab-mcp
+npx tsc --noEmit
 ```
 
 ### MCP Inspector
@@ -265,15 +241,15 @@ bun build src/index.ts --compile --outfile schwab-mcp
 Test the server interactively with the MCP Inspector:
 
 ```bash
-npx @modelcontextprotocol/inspector bun run src/index.ts server
+npx @modelcontextprotocol/inspector node dist/index.js server
 ```
 
 ## Acknowledgments
 
 This project is a fork of [jkoelker/schwab-mcp](https://github.com/jkoelker/schwab-mcp), originally a Python-based MCP server for Schwab brokerage integration. This version is a **complete rewrite** using:
 
-- **[Bun](https://bun.sh/)** as the runtime, package manager, bundler, and test runner (replacing Python/pip/pytest)
 - **TypeScript** with strict typing (replacing Python type hints)
+- **Node.js** as the runtime (replacing Python)
 - **Read-only design** — all trading, order placement, and Discord approval workflows have been removed
 - **[@modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk)** for MCP protocol integration
 - **[technicalindicators](https://www.npmjs.com/package/technicalindicators)** for technical analysis (replacing custom Python implementations)

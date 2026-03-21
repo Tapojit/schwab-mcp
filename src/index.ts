@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { Command } from "commander";
 import { SchwabMCPServer, sendErrorResponse } from "./server.js";
 import { SchwabClient } from "./client.js";

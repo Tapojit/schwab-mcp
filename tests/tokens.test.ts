@@ -42,7 +42,7 @@ describe("TokenManager", () => {
     expect(loaded.refresh_token).toBe("test-refresh");
   });
 
-  test("tokenAge returns time since creation", () => {
+  test("token age can be computed from loaded token", () => {
     mkdirSync(TEST_DIR, { recursive: true });
     const path = join(TEST_DIR, "token.json");
     const mgr = new TokenManager(path);
@@ -51,15 +51,10 @@ describe("TokenManager", () => {
     token.created_at = Date.now() - 60_000; // 1 minute ago
     mgr.save(token);
 
-    const age = mgr.tokenAge();
+    const loaded = mgr.load();
+    const age = Date.now() - loaded.created_at;
     expect(age).toBeGreaterThan(50_000);
     expect(age).toBeLessThan(70_000);
-  });
-
-  test("tokenAge returns Infinity when no token exists", () => {
-    const path = join(TEST_DIR, "nonexistent.json");
-    const mgr = new TokenManager(path);
-    expect(mgr.tokenAge()).toBe(Infinity);
   });
 });
 

@@ -12,7 +12,6 @@ import {
 } from "./tokens.js";
 
 const APP_NAME = "schwab-mcp";
-const DEFAULT_MAX_TOKEN_AGE_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
 const DEFAULT_CALLBACK_URL = "https://127.0.0.1:8182";
 const DEFAULT_BASE_URL = "https://api.schwabapi.com";
 
@@ -75,7 +74,6 @@ program
         clientSecret: resolved.clientSecret,
         callbackUrl: opts.callbackUrl,
         tokenManager: tokenMgr,
-        maxTokenAge: DEFAULT_MAX_TOKEN_AGE_MS,
         baseUrl: opts.baseUrl,
       });
       console.log(`Authentication successful! Token saved to: ${opts.tokenPath}`);
@@ -126,7 +124,6 @@ program
         clientSecret: resolved.clientSecret,
         callbackUrl: opts.callbackUrl,
         tokenManager: tokenMgr,
-        maxTokenAge: DEFAULT_MAX_TOKEN_AGE_MS,
         interactive: false,
         baseUrl: opts.baseUrl,
       });
@@ -135,20 +132,6 @@ program
         `Error initializing Schwab client: ${err}`,
         500,
         { error: String(err) },
-      );
-      return;
-    }
-
-    // Check token age
-    const age = tokenMgr.tokenAge();
-    if (age >= DEFAULT_MAX_TOKEN_AGE_MS) {
-      sendErrorResponse(
-        "Token is older than 5 days. Please run 'schwab-mcp auth' to re-authenticate.",
-        401,
-        {
-          token_expired: true,
-          token_age_days: age / (24 * 60 * 60 * 1000),
-        },
       );
       return;
     }
@@ -164,6 +147,7 @@ program
         tokenMgr,
         opts.baseUrl,
       );
+      client.startBackgroundRefresh();
 
       const mcpServer = new SchwabMCPServer(APP_NAME, client, {
         enableTechnicalTools: opts.technicalTools !== false,

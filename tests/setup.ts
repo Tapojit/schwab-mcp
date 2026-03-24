@@ -3,12 +3,18 @@ import type { JSONValue } from "../src/types.js";
 
 type MockFn = ReturnType<typeof import("bun:test")["mock"]>;
 
+type ClientOverrides = {
+  [K in keyof SchwabClient]?: SchwabClient[K] extends (...args: any[]) => any
+    ? SchwabClient[K]
+    : never;
+};
+
 /**
  * Create a mock SchwabClient where every method returns the given default value.
  * Override specific methods by passing them in the overrides object.
  */
 export function makeMockClient(
-  overrides: Partial<Record<keyof SchwabClient, (...args: any[]) => Promise<JSONValue>>> = {},
+  overrides: ClientOverrides = {},
 ): SchwabClient {
   const defaultReturn = async () => null as JSONValue;
   const methods: Array<keyof SchwabClient> = [
@@ -35,5 +41,9 @@ export function makeMockClient(
   for (const method of methods) {
     client[method] = overrides[method] ?? defaultReturn;
   }
+  // Stubs for lifecycle methods that tools/server tests don't exercise
+  client.setAuthFailureCallback = () => {};
+  client.startBackgroundRefresh = () => {};
+  client.stopBackgroundRefresh = () => {};
   return client as unknown as SchwabClient;
 }

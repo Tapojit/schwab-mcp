@@ -46,11 +46,6 @@ export class TokenManager {
     writeFileSync(this.path, JSON.stringify(token, null, 2), { mode: 0o600 });
   }
 
-  tokenAge(): number {
-    if (!this.exists()) return Infinity;
-    const token = this.load();
-    return Date.now() - token.created_at;
-  }
 }
 
 export function loadCredentials(path: string): Partial<Credentials> {

@@ -25,9 +25,22 @@ export class SchwabMCPServer {
         capabilities: {
           tools: {},
           resources: {},
+          logging: {},
         },
       },
     );
+
+    // Wire up auth failure notifications via MCP logging protocol
+    this.client.setAuthFailureCallback((message: string) => {
+      this.server.sendLoggingMessage({
+        level: "emergency",
+        logger: "schwab-auth",
+        data: message,
+      }).catch(() => {
+        // Connection may not be ready yet; fall back to stderr
+        console.error(message);
+      });
+    });
 
     registerTools(this.server, this.client, {
       enableTechnical: opts.enableTechnicalTools ?? true,

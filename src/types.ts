@@ -13,6 +13,13 @@ export class SchwabAPIError extends Error {
   }
 }
 
+export class AuthenticationRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthenticationRequiredError";
+  }
+}
+
 // -- Enums --
 
 export const MarketType = {

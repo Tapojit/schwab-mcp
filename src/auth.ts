@@ -6,16 +6,17 @@ import { tmpdir } from "node:os";
 import type { OAuthToken } from "./types.js";
 import { TokenManager } from "./tokens.js";
 
-const DEFAULT_MAX_TOKEN_AGE_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
 const OAUTH_TOKEN_URL = "/v1/oauth/token";
 const OAUTH_AUTHORIZE_URL = "/v1/oauth/authorize";
+
+const REFRESH_MAX_RETRIES = 3;
+const REFRESH_BACKOFF_MS = [1000, 2000, 4000];
 
 interface AuthOptions {
   clientId: string;
   clientSecret: string;
   callbackUrl: string;
   tokenManager: TokenManager;
-  maxTokenAge?: number;
   callbackTimeout?: number;
   interactive?: boolean;
   baseUrl?: string;
@@ -58,6 +59,30 @@ export async function refreshToken(
     ...data,
     created_at: Date.now(),
   } as OAuthToken;
+}
+
+export async function refreshTokenWithRetry(
+  clientId: string,
+  clientSecret: string,
+  refreshTokenValue: string,
+  baseUrl: string,
+): Promise<OAuthToken> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= REFRESH_MAX_RETRIES; attempt++) {
+    try {
+      return await refreshToken(clientId, clientSecret, refreshTokenValue, baseUrl);
+    } catch (err) {
+      lastError = err;
+      if (attempt < REFRESH_MAX_RETRIES) {
+        const delay = REFRESH_BACKOFF_MS[attempt] ?? 4000;
+        console.error(
+          `Token refresh attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
 }
 
 async function exchangeCode(
@@ -240,51 +265,42 @@ export async function easyClient(opts: AuthOptions): Promise<OAuthToken> {
     tokenManager,
     clientId,
     clientSecret,
-    maxTokenAge = DEFAULT_MAX_TOKEN_AGE_MS,
+    interactive = true,
     baseUrl = "https://api.schwabapi.com",
   } = opts;
 
   // Try loading existing token
   if (tokenManager.exists()) {
     const token = tokenManager.load();
-    const age = Date.now() - token.created_at;
+    const expiresAt = token.created_at + token.expires_in * 1000;
 
-    if (maxTokenAge > 0 && age >= maxTokenAge) {
-      // Token too old, try refresh
-      try {
-        const refreshed = await refreshToken(
-          clientId,
-          clientSecret,
-          token.refresh_token,
-          baseUrl,
-        );
-        tokenManager.save(refreshed);
-        return refreshed;
-      } catch {
-        // Refresh failed, fall through to login flow
-      }
-    } else {
-      // Token is fresh enough — still try to refresh access_token if expired
-      const expiresAt = token.created_at + token.expires_in * 1000;
-      if (Date.now() >= expiresAt) {
-        try {
-          const refreshed = await refreshToken(
-            clientId,
-            clientSecret,
-            token.refresh_token,
-            baseUrl,
-          );
-          tokenManager.save(refreshed);
-          return refreshed;
-        } catch {
-          // Fall through
-        }
-      }
+    // Access token still valid — use it
+    if (Date.now() < expiresAt) {
       return token;
+    }
+
+    // Access token expired — attempt refresh with retries
+    try {
+      const refreshed = await refreshTokenWithRetry(
+        clientId,
+        clientSecret,
+        token.refresh_token,
+        baseUrl,
+      );
+      tokenManager.save(refreshed);
+      return refreshed;
+    } catch (err) {
+      if (!interactive) {
+        throw new Error(
+          `Token refresh failed and server is non-interactive. ` +
+            `Please run 'schwab-mcp auth' to re-authenticate. Cause: ${err}`,
+        );
+      }
+      // Fall through to login flow
     }
   }
 
-  // No valid token, need login flow
+  // No valid token or refresh failed — need login flow
   return clientFromLoginFlow(opts);
 }
 

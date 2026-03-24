@@ -7,11 +7,14 @@ import type {
   JSONValue,
 } from "./types.js";
 import { TokenManager } from "./tokens.js";
-import { refreshToken } from "./auth.js";
+import { refreshTokenWithRetry } from "./auth.js";
+
+const BACKGROUND_REFRESH_INTERVAL_MS = 25 * 60 * 1000; // 25 minutes
 
 export class SchwabClient {
   private accessToken: string;
   private tokenData: OAuthToken;
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly clientId: string,
@@ -23,11 +26,39 @@ export class SchwabClient {
     this.accessToken = this.tokenData.access_token;
   }
 
+  startBackgroundRefresh(): void {
+    if (this.refreshTimer) return;
+    const timer = setInterval(async () => {
+      try {
+        const refreshed = await refreshTokenWithRetry(
+          this.clientId,
+          this.clientSecret,
+          this.tokenData.refresh_token,
+          this.baseUrl,
+        );
+        this.tokenManager.save(refreshed);
+        this.tokenData = refreshed;
+        this.accessToken = refreshed.access_token;
+      } catch (err) {
+        console.error(`Background token refresh failed: ${err}`);
+      }
+    }, BACKGROUND_REFRESH_INTERVAL_MS);
+    timer.unref();
+    this.refreshTimer = timer;
+  }
+
+  stopBackgroundRefresh(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+
   private async ensureFreshToken(): Promise<void> {
     const expiresAt = this.tokenData.created_at + this.tokenData.expires_in * 1000;
     if (Date.now() < expiresAt) return;
 
-    const refreshed = await refreshToken(
+    const refreshed = await refreshTokenWithRetry(
       this.clientId,
       this.clientSecret,
       this.tokenData.refresh_token,
@@ -63,7 +94,7 @@ export class SchwabClient {
       // Retry once on 401 (token may have been invalidated server-side)
       if (res.status === 401) {
         try {
-          const refreshed = await refreshToken(
+          const refreshed = await refreshTokenWithRetry(
             this.clientId,
             this.clientSecret,
             this.tokenData.refresh_token,

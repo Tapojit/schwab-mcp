@@ -35,5 +35,9 @@ export function makeMockClient(
   for (const method of methods) {
     client[method] = overrides[method] ?? defaultReturn;
   }
+  // Stubs for lifecycle methods that tools/server tests don't exercise
+  client.setAuthFailureCallback = () => {};
+  client.startBackgroundRefresh = () => {};
+  client.stopBackgroundRefresh = () => {};
   return client as unknown as SchwabClient;
 }

@@ -1,4 +1,4 @@
-import { SchwabAPIError } from "./types.js";
+import { SchwabAPIError, AuthenticationRequiredError } from "./types.js";
 import type {
   OAuthToken,
   PriceHistoryOptions,
@@ -11,10 +11,13 @@ import { refreshTokenWithRetry } from "./auth.js";
 
 const BACKGROUND_REFRESH_INTERVAL_MS = 25 * 60 * 1000; // 25 minutes
 
+export type AuthFailureCallback = (message: string) => void;
+
 export class SchwabClient {
   private accessToken: string;
   private tokenData: OAuthToken;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private onAuthFailure: AuthFailureCallback | null = null;
 
   constructor(
     private readonly clientId: string,
@@ -24,6 +27,10 @@ export class SchwabClient {
   ) {
     this.tokenData = tokenManager.load();
     this.accessToken = this.tokenData.access_token;
+  }
+
+  setAuthFailureCallback(cb: AuthFailureCallback): void {
+    this.onAuthFailure = cb;
   }
 
   startBackgroundRefresh(): void {
@@ -40,7 +47,11 @@ export class SchwabClient {
         this.tokenData = refreshed;
         this.accessToken = refreshed.access_token;
       } catch (err) {
-        console.error(`Background token refresh failed: ${err}`);
+        const msg = `Background token refresh failed: ${err}`;
+        console.error(msg);
+        this.onAuthFailure?.(
+          "Authentication expired. Please run 'schwab-mcp auth' to re-authenticate.",
+        );
       }
     }, BACKGROUND_REFRESH_INTERVAL_MS);
     timer.unref();
@@ -58,15 +69,24 @@ export class SchwabClient {
     const expiresAt = this.tokenData.created_at + this.tokenData.expires_in * 1000;
     if (Date.now() < expiresAt) return;
 
-    const refreshed = await refreshTokenWithRetry(
-      this.clientId,
-      this.clientSecret,
-      this.tokenData.refresh_token,
-      this.baseUrl,
-    );
-    this.tokenManager.save(refreshed);
-    this.tokenData = refreshed;
-    this.accessToken = refreshed.access_token;
+    try {
+      const refreshed = await refreshTokenWithRetry(
+        this.clientId,
+        this.clientSecret,
+        this.tokenData.refresh_token,
+        this.baseUrl,
+      );
+      this.tokenManager.save(refreshed);
+      this.tokenData = refreshed;
+      this.accessToken = refreshed.access_token;
+    } catch (err) {
+      this.onAuthFailure?.(
+        "Authentication expired. Please run 'schwab-mcp auth' to re-authenticate.",
+      );
+      throw new AuthenticationRequiredError(
+        `Token refresh failed. Please run 'schwab-mcp auth' to re-authenticate. Cause: ${err}`,
+      );
+    }
   }
 
   private async request(
@@ -118,7 +138,12 @@ export class SchwabClient {
           return (await retry.json()) as JSONValue;
         } catch (err) {
           if (err instanceof SchwabAPIError) throw err;
-          throw new SchwabAPIError(res.status, url.toString(), body);
+          this.onAuthFailure?.(
+            "Authentication expired. Please run 'schwab-mcp auth' to re-authenticate.",
+          );
+          throw new AuthenticationRequiredError(
+            `Token refresh failed after 401. Please run 'schwab-mcp auth' to re-authenticate. Cause: ${err}`,
+          );
         }
       }
       throw new SchwabAPIError(res.status, url.toString(), body);

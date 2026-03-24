@@ -124,7 +124,7 @@ program
         clientSecret: resolved.clientSecret,
         callbackUrl: opts.callbackUrl,
         tokenManager: tokenMgr,
-        interactive: false,
+        interactive: true,
         baseUrl: opts.baseUrl,
       });
     } catch (err) {

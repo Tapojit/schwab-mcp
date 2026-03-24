@@ -26,6 +26,22 @@ function basicAuth(clientId: string, clientSecret: string): string {
   return "Basic " + btoa(`${clientId}:${clientSecret}`);
 }
 
+export class TokenRefreshError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+  ) {
+    super(message);
+    this.name = "TokenRefreshError";
+  }
+
+  /** Returns true for network errors, 5xx, and 429 (rate limit). */
+  get isTransient(): boolean {
+    if (this.statusCode === undefined) return true; // network/fetch error
+    return this.statusCode >= 500 || this.statusCode === 429;
+  }
+}
+
 export async function refreshToken(
   clientId: string,
   clientSecret: string,
@@ -38,19 +54,28 @@ export async function refreshToken(
     refresh_token: refreshTokenValue,
   });
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: basicAuth(clientId, clientSecret),
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: body.toString(),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: basicAuth(clientId, clientSecret),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+  } catch (err) {
+    // Network error (DNS, connection refused, timeout, etc.)
+    throw new TokenRefreshError(
+      `Token refresh network error: ${err}`,
+    );
+  }
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(
+    throw new TokenRefreshError(
       `Token refresh failed (${res.status}): ${text}`,
+      res.status,
     );
   }
 
@@ -73,6 +98,9 @@ export async function refreshTokenWithRetry(
       return await refreshToken(clientId, clientSecret, refreshTokenValue, baseUrl);
     } catch (err) {
       lastError = err;
+      // Only retry on transient errors (network, 5xx, 429)
+      const isTransient = err instanceof TokenRefreshError && err.isTransient;
+      if (!isTransient) break;
       if (attempt < REFRESH_MAX_RETRIES) {
         const delay = REFRESH_BACKOFF_MS[attempt] ?? 4000;
         console.error(
@@ -82,7 +110,8 @@ export async function refreshTokenWithRetry(
       }
     }
   }
-  throw lastError;
+  if (lastError instanceof Error) throw lastError;
+  throw new Error(String(lastError));
 }
 
 async function exchangeCode(

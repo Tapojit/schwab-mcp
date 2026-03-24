@@ -18,6 +18,7 @@ export class SchwabClient {
   private tokenData: OAuthToken;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private onAuthFailure: AuthFailureCallback | null = null;
+  private refreshInFlight: Promise<OAuthToken> | null = null;
 
   constructor(
     private readonly clientId: string,
@@ -33,22 +34,34 @@ export class SchwabClient {
     this.onAuthFailure = cb;
   }
 
+  /** Serialized token refresh — concurrent callers share the same in-flight request. */
+  private doRefresh(): Promise<OAuthToken> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+    this.refreshInFlight = refreshTokenWithRetry(
+      this.clientId,
+      this.clientSecret,
+      this.tokenData.refresh_token,
+      this.baseUrl,
+    ).then(
+      (refreshed) => {
+        this.tokenManager.save(refreshed);
+        this.tokenData = refreshed;
+        this.accessToken = refreshed.access_token;
+        return refreshed;
+      },
+    ).finally(() => {
+      this.refreshInFlight = null;
+    });
+    return this.refreshInFlight;
+  }
+
   startBackgroundRefresh(): void {
     if (this.refreshTimer) return;
     const timer = setInterval(async () => {
       try {
-        const refreshed = await refreshTokenWithRetry(
-          this.clientId,
-          this.clientSecret,
-          this.tokenData.refresh_token,
-          this.baseUrl,
-        );
-        this.tokenManager.save(refreshed);
-        this.tokenData = refreshed;
-        this.accessToken = refreshed.access_token;
+        await this.doRefresh();
       } catch (err) {
-        const msg = `Background token refresh failed: ${err}`;
-        console.error(msg);
+        console.error(`Background token refresh failed: ${err}`);
         this.onAuthFailure?.(
           "Authentication expired. Please run 'schwab-mcp auth' to re-authenticate.",
         );
@@ -70,15 +83,7 @@ export class SchwabClient {
     if (Date.now() < expiresAt) return;
 
     try {
-      const refreshed = await refreshTokenWithRetry(
-        this.clientId,
-        this.clientSecret,
-        this.tokenData.refresh_token,
-        this.baseUrl,
-      );
-      this.tokenManager.save(refreshed);
-      this.tokenData = refreshed;
-      this.accessToken = refreshed.access_token;
+      await this.doRefresh();
     } catch (err) {
       this.onAuthFailure?.(
         "Authentication expired. Please run 'schwab-mcp auth' to re-authenticate.",
@@ -114,15 +119,7 @@ export class SchwabClient {
       // Retry once on 401 (token may have been invalidated server-side)
       if (res.status === 401) {
         try {
-          const refreshed = await refreshTokenWithRetry(
-            this.clientId,
-            this.clientSecret,
-            this.tokenData.refresh_token,
-            this.baseUrl,
-          );
-          this.tokenManager.save(refreshed);
-          this.tokenData = refreshed;
-          this.accessToken = refreshed.access_token;
+          await this.doRefresh();
 
           const retry = await fetch(url.toString(), {
             headers: {

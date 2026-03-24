@@ -88,7 +88,7 @@ On Linux, the `XDG_DATA_HOME` environment variable is respected if set. On Windo
 
 You can override the token path with `--token-path <path>`.
 
-> **Token expiry**: OAuth tokens are valid for up to **5 days**. The server checks token age on startup and will prompt you to re-authenticate with `schwab-mcp auth` if the token has expired.
+> **Token expiry**: Schwab access tokens expire after **30 minutes** and refresh tokens after **7 days**. The server automatically refreshes tokens in the background every 25 minutes. If the refresh token expires (after 7 days of inactivity), the server will notify connected clients and you'll need to re-authenticate with `schwab-mcp auth`.
 
 ### Running the Server
 
